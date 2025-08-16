@@ -66,7 +66,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 * Deletes: Akismet, Hello Dolly
 * Installs + activates:
 
-  * Gutenberg · Query Monitor · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
+  * Gutenberg · Query Monitor · Create Block Theme · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
 
 ### 🎨 Themes
 
