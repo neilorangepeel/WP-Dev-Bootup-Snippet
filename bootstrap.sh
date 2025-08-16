@@ -132,9 +132,8 @@ fi
 
 # --- Admin Color Scheme --------------------------------------------------------
 echo "== Admin color scheme =="
-# Set admin color to 'modern' for all users; WP falls back if it's unavailable.
-for UID in $(wp user list --field=ID); do
-	wp user meta update "$UID" admin_color "modern" >/dev/null || true
+for USER_ID in $(wp user list --field=ID); do
+	wp user meta update "$USER_ID" admin_color modern >/dev/null || true
 done
 echo "Requested admin color scheme: modern (WP will fall back if not available)"
 
