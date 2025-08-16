@@ -7,7 +7,6 @@ A handy script + MU‑plugin combo to instantly configure a fresh **Studio by Wo
 ## 🚀 Quick Start
 
 ### One‑liner (recommended)
-
 Run directly from GitHub to always use the latest version:
 
 ```bash
@@ -16,20 +15,17 @@ curl -sSL https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/bootstr
 ```
 
 Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
-
-* Patch `wp-config.php` (debug constants, memory, environment) and **self‑heal** common mistakes.
-* Apply timezone, permalinks, date/time formats, and set **site language to English (UK)**.
-* Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
-* Delete default content.
-* Install/activate your plugin set (Gutenberg, Create Block Theme, Query Monitor, etc.).
-* Set **block‑theme friendly media sizes**.
-* Disable comment notifications, pingbacks/trackbacks.
-* Create a **Navigation (block) menu** with Home/Blog and best‑effort link it in the header.
-* Set all users’ **Admin Color Scheme** to **Modern**.
-* Add a tiny MU‑plugin to disable **emoji** and **oEmbed** extras.
+- Patch `wp-config.php` (debug constants, memory, environment) and **self‑heal** common mistakes.
+- Apply timezone, permalinks, date/time formats, and set **site language to English (UK)**.
+- Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
+- Delete default content.
+- Install/activate your plugin set (Gutenberg, Create Block Theme, Query Monitor, etc.).
+- Set **block‑theme friendly media sizes**.
+- Disable comment notifications, pingbacks/trackbacks.
+- Set all users’ **Admin Color Scheme** to **Modern**.
+- Add a tiny MU‑plugin to disable **emoji** and **oEmbed** extras.
 
 ### Manual run
-
 1. Copy `bootstrap.sh` into your site root.
 2. `chmod +x bootstrap.sh`
 3. `./bootstrap.sh`
@@ -39,83 +35,66 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 ## 📦 What it does (at a glance)
 
 ### 🔧 Config (`wp-config.php`)
-
-* `WP_ENVIRONMENT_TYPE='development'`
-* `WP_DEBUG=true`, `WP_DEBUG_LOG=true`, `WP_DEBUG_DISPLAY=false`
-* `SCRIPT_DEBUG=true`, `DISALLOW_FILE_EDIT=true`
-* `WP_MEMORY_LIMIT='256M'`
-* `WP_DISABLE_FATAL_ERROR_HANDLER=true`
-* `WP_POST_REVISIONS=10`
+- `WP_ENVIRONMENT_TYPE='development'`
+- `WP_DEBUG=true`, `WP_DEBUG_LOG=true`, `WP_DEBUG_DISPLAY=false`
+- `SCRIPT_DEBUG=true`, `DISALLOW_FILE_EDIT=true`
+- `WP_MEMORY_LIMIT='256M'`
+- `WP_DISABLE_FATAL_ERROR_HANDLER=true`
+- `WP_POST_REVISIONS=10`
 
 ### 🌍 Options
-
-* Site language → **English (UK)** (`en_GB`) — enforced via `language core activate` **and** `WPLANG` option
-* Timezone → `Europe/London`
-* Permalinks → `/%postname%/`
-* Tagline → `'Just another site'`
-* Date format → `j F Y` · Time format → `H:i`
-* Discourage search engines (dev/staging)
+- Site language → **English (UK)** (`en_GB`) — enforced via `language core activate` **and** `WPLANG` option
+- Timezone → `Europe/London`
+- Permalinks → `/%postname%/`
+- Tagline → `'Just another site'`
+- Date format → `j F Y` · Time format → `H:i`
+- Discourage search engines (dev/staging)
 
 ### 📰 Content
-
-* Creates **Home**, **About**, **Blog**, **Contact** pages
-* Sets static front page + posts page
-* Removes “Hello world!” + “Sample Page”
+- Creates **Home**, **About**, **Blog**, **Contact** pages
+- Sets static front page + posts page
+- Removes “Hello world!” + “Sample Page”
 
 ### 🔌 Plugins
-
-* Deletes: Akismet, Hello Dolly
-* Installs + activates:
-
-  * Gutenberg · Create Block Theme · Query Monitor · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
+- Deletes: Akismet, Hello Dolly
+- Installs + activates:
+  - Gutenberg · Create Block Theme · Query Monitor · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
 
 ### 🎨 Themes
-
-* Activates **Twenty Twenty‑Five**
-* Deletes older default themes
+- Activates **Twenty Twenty‑Five**
+- Deletes older default themes
 
 ### 💬 Discussion
-
-* Turns off email notifications
-* Disables pingbacks/trackbacks
-* Requires moderation (no auto‑approve)
+- Turns off email notifications
+- Disables pingbacks/trackbacks
+- Requires moderation (no auto‑approve)
 
 ### 🖼 Media (block‑theme friendly)
-
-* **Thumbnail**: 320 × 320 (cropped)
-* **Medium**: 900 × auto (height 0)
-* **Medium Large**: 1536 × auto
-* **Large**: 1400 × auto
-* Default insert size: **large**
-
-### 🧭 Navigation (block)
-
-* Creates a **Navigation** entity titled *Main Navigation* with Home, About, Blog, Contact links
-* Attempts to link it into the **header** if a navigation block exists without a ref
+- **Thumbnail**: 320 × 320 (cropped)
+- **Medium**: 900 × auto (height 0)
+- **Medium Large**: 1536 × auto
+- **Large**: 1400 × auto
+- Default insert size: **large**
 
 ### 🎛 Admin Color Scheme
-
-* Sets all users’ `admin_color` to **modern** (UI theme in wp‑admin)
+- Sets all users’ `admin_color` to **modern** (UI theme in wp‑admin)
 
 ### ✨ MU‑plugin: `dev-tweaks.php`
-
-* Disables emoji detection script
-* Disables oEmbed discovery and host JS
+- Disables emoji detection script
+- Disables oEmbed discovery and host JS
 
 ---
 
 ## 🧩 Alfred integration
-
-* Save the one‑liner as a snippet in Alfred (e.g., keyword `;wpboot`).
-* Type `;wpboot` in your terminal → it pastes the curl command.
+- Save the one‑liner as a snippet in Alfred (e.g., keyword `;wpboot`).
+- Type `;wpboot` in your terminal → it pastes the curl command.
 
 ---
 
 ## 🧪 Verify (optional)
-
 Quick checks you can run after bootstrapping:
 
-````bash
+```bash
 wp config get WP_ENVIRONMENT_TYPE --type=constant
 wp config get WP_MEMORY_LIMIT     --type=constant
 wp language core list --status=active   # should show en_GB active
@@ -124,21 +103,11 @@ wp option get permalink_structure
 wp option get timezone_string
 wp plugin list --status=active
 wp option get large_size_w ; wp option get medium_size_w ; wp option get medium_large_size_w
-wp post list --post_type=wp_navigation --fields=ID,post_title
-```bash
-wp config get WP_ENVIRONMENT_TYPE --type=constant
-wp config get WP_MEMORY_LIMIT     --type=constant
-wp option get permalink_structure
-wp option get timezone_string
-wp plugin list --status=active
-wp option get large_size_w ; wp option get medium_size_w ; wp option get medium_large_size_w
-wp post list --post_type=wp_navigation --fields=ID,post_title
-````
+```
 
 ---
 
 ## 📜 Reference: `bootstrap.sh`
-
 > The script is commented so each step is easy to skim. Keep this file in your repo root and the one‑liner will always fetch the latest version.
 
 ```bash
@@ -154,19 +123,18 @@ if ! php -l wp-config.php >/dev/null 2>&1; then
   echo "wp-config.php has a PHP syntax error; attempting auto-fix…"
   BACKUP="wp-config.php.bak.$(date +%s)"; cp wp-config.php "$BACKUP"; echo "Backup: $BACKUP"
   # Quote bare memory values like 256M → '256M'
-  perl -i -pe "s/define\(\s*(['\"])WP_MEMORY_LIMIT\1\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MEMORY_LIMIT','\$2\$3')/ig" wp-config.php
-  perl -i -pe "s/define\(\s*(['\"])WP_MAX_MEMORY_LIMIT\1\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MAX_MEMORY_LIMIT','\$2\$3')/ig" wp-config.php
+  perl -i -pe "s/define\(\s*(['"])WP_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MEMORY_LIMIT','\$2\$3')/ig" wp-config.php
+  perl -i -pe "s/define\(\s*(['"])WP_MAX_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MAX_MEMORY_LIMIT','\$2\$3')/ig" wp-config.php
   perl -i -pe "s/define\(\s*WP_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MEMORY_LIMIT','\$1\$2')/ig" wp-config.php
   perl -i -pe "s/define\(\s*WP_MAX_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MAX_MEMORY_LIMIT','\$1\$2')/ig" wp-config.php
   # Quote unquoted environment type values
-  perl -i -pe "s/define\(\s*(['\"])WP_ENVIRONMENT_TYPE\1\s*,\s*(development|staging|production)\s*\)/define('WP_ENVIRONMENT_TYPE','\$2')/i" wp-config.php
+  perl -i -pe "s/define\(\s*(['"])WP_ENVIRONMENT_TYPE\s*,\s*(development|staging|production)\s*\)/define('WP_ENVIRONMENT_TYPE','\$2')/i" wp-config.php
   perl -i -pe "s/define\(\s*WP_ENVIRONMENT_TYPE\s*,\s*(development|staging|production)\s*\)/define('WP_ENVIRONMENT_TYPE','\$1')/i" wp-config.php
   php -l wp-config.php >/dev/null || { echo "Still seeing a syntax error; fix the reported line."; exit 1; }
 fi
 
 # Confirm WordPress loads (no plugins/themes)
-wp core is-installed --skip-plugins --skip-themes >/dev/null 2>&1 \
-  || { echo "WP-CLI can't load WordPress here (check path/config)."; exit 1; }
+wp core is-installed --skip-plugins --skip-themes >/dev/null 2>&1   || { echo "WP-CLI can't load WordPress here (check path/config)."; exit 1; }
 
 # ── wp-config.php constants ───────────────────────────────────────────────
 echo "== wp-config constants =="
@@ -262,32 +230,8 @@ wp option update medium_large_size_w 1536 ; wp option update medium_large_size_h
 wp option update large_size_w 1400 ; wp option update large_size_h 0
 wp option update image_default_size 'large'
 
-# ── Navigation (block) ───────────────────────────────────────────────────
-echo "== Navigation (block) =="
-# Create/reuse a Navigation entity and add Home/Blog links
-NAV_ID="$(wp post list --post_type=wp_navigation --title='Main Navigation' --format=ids | head -n1)"
-if [ -z "$NAV_ID" ]; then
-  NAV_ID="$(wp post create --post_type=wp_navigation --post_status=publish --post_title='Main Navigation' --porcelain)"
-fi
-TMPNAV="$(mktemp)"
-cat > "$TMPNAV" <<EOF
-<!-- wp:navigation-link {"label":"Home","type":"page","id":$HOME_ID,"kind":"post-type"} /-->
-<!-- wp:navigation-link {"label":"About","type":"page","id":$ABOUT_ID,"kind":"post-type"} /-->
-<!-- wp:navigation-link {"label":"Blog","type":"page","id":$BLOG_ID,"kind":"post-type"} /-->
-<!-- wp:navigation-link {"label":"Contact","type":"page","id":$CONTACT_ID,"kind":"post-type"} /-->
-EOF
-wp post update "$NAV_ID" --post_content="$(cat "$TMPNAV")" >/dev/null ; rm -f "$TMPNAV"
-echo "Navigation entity ID: $NAV_ID (assign in Site Editor → Header → Navigation)."
-
-# Best‑effort: link nav to header if a navigation block exists without a ref
-HEADER_ID="$(wp post list --post_type=wp_template_part --name=header --format=ids | head -n1 || true)"
-if [ -n "${HEADER_ID:-}" ]; then
-  CONTENT="$(wp post get "$HEADER_ID" --field=post_content)"
-  if echo "$CONTENT" | grep -q "<!-- wp:navigation" && ! echo "$CONTENT" | grep -q "\"ref\":"; then
-    NEWCONTENT="$(echo "$CONTENT" | perl -0777 -pe "s/(<!--\s*wp:navigation\s*\{)/\${1}\"ref\": $NAV_ID, /")"
-    [ -n "$NEWCONTENT" ] && wp post update "$HEADER_ID" --post_content="$NEWCONTENT" >/dev/null && echo "Linked Navigation to header."
-  fi
-fi
+# ── Navigation ───────────────────────────────────────────────────────────
+# Using the default Page List block in templates; no navigation entity is created.
 
 # ── Admin color scheme ───────────────────────────────────────────────────
 echo "== Admin color scheme =="
@@ -326,18 +270,6 @@ PHP
 echo "== Finalize =="
 wp rewrite flush
 
-echo -e "\nBootstrap complete."
+echo -e "
+Bootstrap complete."
 ```
-
----
-
-## 🔄 Updating
-
-* Keep your canonical `bootstrap.sh` in GitHub; edit as your defaults evolve.
-* Use the one‑liner to always pull the newest version.
-
----
-
-## 📜 License
-
-MIT — free to copy, adapt, and share.
