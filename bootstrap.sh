@@ -135,7 +135,7 @@ echo "== Admin color scheme =="
 for USER_ID in $(wp user list --field=ID); do
 	wp user meta update "$USER_ID" admin_color modern >/dev/null || true
 done
-echo "Requested admin color scheme: modern (WP will fall back if not available)"
+echo "Set admin color scheme to: modern"
 
 # --- Emoji & oEmbed cleanup (MU-plugin) ---------------------------------------
 echo "== Emoji & oEmbed cleanup (MU-plugin) =="
