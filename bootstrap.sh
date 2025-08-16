@@ -70,7 +70,7 @@ SP_ID="$(wp post list --post_type=page --title='Sample Page' --format=ids)" ; [ 
 # ── Plugins ──────────────────────────────────────────────────────────────
 echo "== Plugins =="
 wp plugin delete akismet hello 2>/dev/null || true
-wp plugin install gutenberg query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate || true
+wp plugin install gutenberg create-block-theme query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate || true
 
 # ── Themes ───────────────────────────────────────────────────────────────
 echo "== Themes =="
