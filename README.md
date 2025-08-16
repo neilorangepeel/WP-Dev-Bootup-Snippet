@@ -19,7 +19,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 * Patch `wp-config.php` (debug constants, memory, environment) and **self‑heal** common mistakes.
 * Apply timezone, permalinks, and date/time formats.
-* Create **Home** + **Blog** pages and set a static front page.
+* Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
 * Delete default content.
 * Install/activate your plugin set (Gutenberg, Query Monitor, etc.).
 * Set **block‑theme friendly media sizes**.
@@ -57,7 +57,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 ### 📰 Content
 
-* Creates **Home** + **Blog** pages
+* Creates **Home**, **About**, **Blog**, **Contact** pages
 * Sets static front page + posts page
 * Removes “Hello world!” + “Sample Page”
 
@@ -66,7 +66,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 * Deletes: Akismet, Hello Dolly
 * Installs + activates:
 
-  * Gutenberg · Query Monitor · Create Block Theme · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
+  * Gutenberg · Query Monitor · Debug Bar · User Switching · Regenerate Thumbnails · WP Mail Logging
 
 ### 🎨 Themes
 
@@ -89,7 +89,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 ### 🧭 Navigation (block)
 
-* Creates a **Navigation** entity titled *Main Navigation* with Home/Blog links
+* Creates a **Navigation** entity titled *Main Navigation* with Home, About, Blog, Contact links
 * Attempts to link it into the **header** if a navigation block exists without a ref
 
 ### 🎛 Admin Color Scheme
@@ -182,7 +182,7 @@ wp option update date_format 'j F Y'
 wp option update time_format 'H:i'
 wp option update blog_public 0           # discourage indexing
 
-# ── Pages (Home/Blog) ────────────────────────────────────────────────────
+# ── Pages (Home/About/Blog/Contact) ────────────────────────────────────────────────────
 echo "== Content: pages =="
 ensure_page () { # usage: ensure_page "Title" slug → prints ID
   local ID; ID="$(wp post list --post_type=page --pagename="$2" --format=ids)"
@@ -192,7 +192,9 @@ ensure_page () { # usage: ensure_page "Title" slug → prints ID
   echo "$ID"
 }
 HOME_ID="$(ensure_page 'Home' 'home')"
+ABOUT_ID="$(ensure_page 'About' 'about')"
 BLOG_ID="$(ensure_page 'Blog' 'blog')"
+CONTACT_ID="$(ensure_page 'Contact' 'contact')"
 wp option update show_on_front 'page'
 wp option update page_on_front "$HOME_ID"
 wp option update page_for_posts "$BLOG_ID"
@@ -242,7 +244,9 @@ fi
 TMPNAV="$(mktemp)"
 cat > "$TMPNAV" <<EOF
 <!-- wp:navigation-link {"label":"Home","type":"page","id":$HOME_ID,"kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"About","type":"page","id":$ABOUT_ID,"kind":"post-type"} /-->
 <!-- wp:navigation-link {"label":"Blog","type":"page","id":$BLOG_ID,"kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"Contact","type":"page","id":$CONTACT_ID,"kind":"post-type"} /-->
 EOF
 wp post update "$NAV_ID" --post_content="$(cat "$TMPNAV")" >/dev/null ; rm -f "$TMPNAV"
 echo "Navigation entity ID: $NAV_ID (assign in Site Editor → Header → Navigation)."
