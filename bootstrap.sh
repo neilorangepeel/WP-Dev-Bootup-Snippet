@@ -47,7 +47,7 @@ wp option update date_format 'j F Y'
 wp option update time_format 'H:i'
 wp option update blog_public 0           # discourage indexing
 
-# ── Pages (Home/Blog) ────────────────────────────────────────────────────
+# ── Pages (Home/About/Blog/Contact) ────────────────────────────────────────────────────
 echo "== Content: pages =="
 ensure_page () { # usage: ensure_page "Title" slug → prints ID
   local ID; ID="$(wp post list --post_type=page --pagename="$2" --format=ids)"
@@ -57,7 +57,9 @@ ensure_page () { # usage: ensure_page "Title" slug → prints ID
   echo "$ID"
 }
 HOME_ID="$(ensure_page 'Home' 'home')"
+ABOUT_ID="$(ensure_page 'About' 'about')"
 BLOG_ID="$(ensure_page 'Blog' 'blog')"
+CONTACT_ID="$(ensure_page 'Contact' 'contact')"
 wp option update show_on_front 'page'
 wp option update page_on_front "$HOME_ID"
 wp option update page_for_posts "$BLOG_ID"
@@ -70,7 +72,7 @@ SP_ID="$(wp post list --post_type=page --title='Sample Page' --format=ids)" ; [ 
 # ── Plugins ──────────────────────────────────────────────────────────────
 echo "== Plugins =="
 wp plugin delete akismet hello 2>/dev/null || true
-wp plugin install gutenberg create-block-theme query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate || true
+wp plugin install gutenberg query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate || true
 
 # ── Themes ───────────────────────────────────────────────────────────────
 echo "== Themes =="
@@ -107,7 +109,9 @@ fi
 TMPNAV="$(mktemp)"
 cat > "$TMPNAV" <<EOF
 <!-- wp:navigation-link {"label":"Home","type":"page","id":$HOME_ID,"kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"About","type":"page","id":$ABOUT_ID,"kind":"post-type"} /-->
 <!-- wp:navigation-link {"label":"Blog","type":"page","id":$BLOG_ID,"kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"Contact","type":"page","id":$CONTACT_ID,"kind":"post-type"} /-->
 EOF
 wp post update "$NAV_ID" --post_content="$(cat "$TMPNAV")" >/dev/null ; rm -f "$TMPNAV"
 echo "Navigation entity ID: $NAV_ID (assign in Site Editor → Header → Navigation)."
