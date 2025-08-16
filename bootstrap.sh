@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure we're inside a WP install
-wp core is-installed >/dev/null 2>&1 || { echo "WordPress not detected"; exit 1; }
+# Path checks
+[ -f wp-config.php ] || { echo "wp-config.php not found in: $PWD"; exit 1; }
+php -l wp-config.php >/dev/null || { echo "wp-config.php has a PHP syntax error. Fix it and re-run."; exit 1; }
+wp core is-installed --skip-plugins --skip-themes >/dev/null 2>&1 \
+  || { echo "WP-CLI can't load WordPress here (check path/config)."; exit 1; }
 
 echo "== wp-config constants =="
 wp config set WP_ENVIRONMENT_TYPE development --type=constant --raw 2>/dev/null || true
@@ -12,13 +15,11 @@ wp config set WP_DEBUG_DISPLAY     false       --type=constant --raw 2>/dev/null
 wp config set SCRIPT_DEBUG         true        --type=constant --raw 2>/dev/null || true
 wp config set DISALLOW_FILE_EDIT   true        --type=constant --raw 2>/dev/null || true
 
-# string value -> don't use --raw so it gets quoted in PHP
-wp config set WP_MEMORY_LIMIT      256M        --type=constant        2>/dev/null || true
+# string constant must be quoted in PHP, so no --raw
+wp config set WP_MEMORY_LIMIT      '256M'      --type=constant        2>/dev/null || true
 
-# these are safe as raw (boolean/int)
 wp config set WP_DISABLE_FATAL_ERROR_HANDLER true --type=constant --raw 2>/dev/null || true
 wp config set WP_POST_REVISIONS    10            --type=constant --raw 2>/dev/null || true
-
 
 echo "== Core options =="
 wp option update timezone_string 'Europe/London'
