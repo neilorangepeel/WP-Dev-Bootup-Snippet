@@ -11,9 +11,14 @@ wp config set WP_DEBUG_LOG         true        --type=constant --raw 2>/dev/null
 wp config set WP_DEBUG_DISPLAY     false       --type=constant --raw 2>/dev/null || true
 wp config set SCRIPT_DEBUG         true        --type=constant --raw 2>/dev/null || true
 wp config set DISALLOW_FILE_EDIT   true        --type=constant --raw 2>/dev/null || true
-wp config set WP_MEMORY_LIMIT      256M        --type=constant --raw 2>/dev/null || true
+
+# string value -> don't use --raw so it gets quoted in PHP
+wp config set WP_MEMORY_LIMIT      256M        --type=constant        2>/dev/null || true
+
+# these are safe as raw (boolean/int)
 wp config set WP_DISABLE_FATAL_ERROR_HANDLER true --type=constant --raw 2>/dev/null || true
-wp config set WP_POST_REVISIONS    10          --type=constant --raw 2>/dev/null || true
+wp config set WP_POST_REVISIONS    10            --type=constant --raw 2>/dev/null || true
+
 
 echo "== Core options =="
 wp option update timezone_string 'Europe/London'
