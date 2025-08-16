@@ -1,40 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Self-heal & sanity checks -------------------------------------------------
-# Must be in the WP site root
+# --- Self-heal & sanity checks (wp-config) -------------------------------
 [ -f wp-config.php ] || { echo "wp-config.php not found in: $PWD"; exit 1; }
 
-# If wp-config.php has a parse error (often unquoted 256M/512M or environment type), try to auto-fix, then re-check
 if ! php -l wp-config.php >/dev/null 2>&1; then
-	echo "wp-config.php has a PHP syntax error; attempting auto-fix for common issues…"
+	echo "wp-config.php has a PHP syntax error; attempting auto-fix…"
 	BACKUP="wp-config.php.bak.$(date +%s)"
 	cp wp-config.php "$BACKUP"
 	echo "Backup created: $BACKUP"
 
-	# Quote bare M/G values for memory constants (covers ' or " names, and bare names)
+	# Quote bare M/G memory values, e.g. 256M -> '256M'
 	perl -i -pe "s/define\(\s*(['\"])WP_MEMORY_LIMIT\1\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MEMORY_LIMIT', '\$2\$3')/ig" wp-config.php
 	perl -i -pe "s/define\(\s*(['\"])WP_MAX_MEMORY_LIMIT\1\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MAX_MEMORY_LIMIT', '\$2\$3')/ig" wp-config.php
 	perl -i -pe "s/define\(\s*WP_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MEMORY_LIMIT', '\$1\$2')/ig" wp-config.php
 	perl -i -pe "s/define\(\s*WP_MAX_MEMORY_LIMIT\s*,\s*([0-9]+)\s*([MG])\s*\)/define('WP_MAX_MEMORY_LIMIT', '\$1\$2')/ig" wp-config.php
 
-	# Quote unquoted WP_ENVIRONMENT_TYPE values (development|staging|production)
+	# Quote unquoted environment type values
 	perl -i -pe "s/define\(\s*(['\"])WP_ENVIRONMENT_TYPE\1\s*,\s*(development|staging|production)\s*\)/define('WP_ENVIRONMENT_TYPE', '\$2')/i" wp-config.php
 	perl -i -pe "s/define\(\s*WP_ENVIRONMENT_TYPE\s*,\s*(development|staging|production)\s*\)/define('WP_ENVIRONMENT_TYPE', '\$1')/i" wp-config.php
 
-	php -l wp-config.php >/dev/null || { echo "Still seeing a syntax error in wp-config.php. Open it and fix the reported line."; exit 1; }
+	php -l wp-config.php >/dev/null || { echo "Still seeing a syntax error in wp-config.php. Fix the reported line and re-run."; exit 1; }
 fi
 
-# Confirm WP loads (no plugins/themes) so WP-CLI can proceed
+# Confirm WP loads (no plugins/themes)
 wp core is-installed --skip-plugins --skip-themes >/dev/null 2>&1 \
 	|| { echo "WP-CLI can't load WordPress here (check path/config)."; exit 1; }
 
 # --- wp-config.php constants ---------------------------------------------------
 echo "== wp-config constants =="
-# Strings -> let WP-CLI quote them (no --raw)
+# Strings -> let WP-CLI quote them
 wp config set WP_ENVIRONMENT_TYPE development --type=constant        2>/dev/null || true
 wp config set WP_MEMORY_LIMIT      256M        --type=constant        2>/dev/null || true
-# Booleans / ints -> keep --raw
+# Booleans / ints -> raw
 wp config set WP_DEBUG             true        --type=constant --raw  2>/dev/null || true
 wp config set WP_DEBUG_LOG         true        --type=constant --raw  2>/dev/null || true
 wp config set WP_DEBUG_DISPLAY     false       --type=constant --raw  2>/dev/null || true
@@ -46,12 +44,10 @@ wp config set WP_POST_REVISIONS    10            --type=constant --raw 2>/dev/nu
 # --- Core options --------------------------------------------------------------
 echo "== Core options =="
 wp option update timezone_string 'Europe/London'
-wp rewrite structure '/%postname%/' --hard
-
-# Random tagline (lowercase 8 chars); change to a fixed string if you prefer
+wp rewrite structure '/%postname%/'    # no --hard in Studio/nginx
+# Random tagline
 TAGLINE="$(LC_ALL=C tr -dc 'a-z' </dev/urandom 2>/dev/null | head -c 8 || echo 'Just another site')"
 wp option update blogdescription "$TAGLINE"
-
 wp option update date_format 'j F Y'
 wp option update time_format 'H:i'
 wp option update blog_public 0   # discourage search engines
@@ -109,18 +105,40 @@ wp option update medium_large_size_w 1536
 wp option update medium_large_size_h 1536
 wp option update image_default_size 'large'
 
-# --- Menus ---------------------------------------------------------------------
-echo "== Menus =="
-if ! wp menu list --fields=slug | grep -q '^main-menu$'; then
-	wp menu create "Main Menu" >/dev/null
-fi
-wp menu item add-post main-menu "$HOME_ID" >/dev/null 2>&1 || true
-wp menu item add-post main-menu "$BLOG_ID" >/dev/null 2>&1 || true
-wp menu location assign main-menu primary 2>/dev/null || true
+# --- Navigation (block theme) --------------------------------------------------
+echo "== Navigation (block) =="
+# Create a Navigation entity with Home + Blog links
+NAV_ID="$(wp post create --post_type=wp_navigation --post_status=publish --post_title='Main Navigation' --porcelain)"
+TMPNAV="$(mktemp)"
+cat > "$TMPNAV" <<EOF
+<!-- wp:navigation-link {"label":"Home","type":"page","id":$HOME_ID,"kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"Blog","type":"page","id":$BLOG_ID,"kind":"post-type"} /-->
+EOF
+wp post update "$NAV_ID" --post_content="$(cat "$TMPNAV")" >/dev/null
+rm -f "$TMPNAV"
+echo "Created Navigation entity ID: $NAV_ID (assign it in Site Editor → Header → Navigation)."
 
-# --- Widgets / sidebars --------------------------------------------------------
-echo "== Widgets / sidebars =="
-wp option update sidebars_widgets "{\"time\": $(date +%s), \"wp_inactive_widgets\": []}" --format=json 2>/dev/null || true
+# (Optional best-effort attach to header if a nav block without ref exists)
+HEADER_ID="$(wp post list --post_type=wp_template_part --name=header --format=ids | head -n1 || true)"
+if [ -n "${HEADER_ID:-}" ]; then
+	CONTENT="$(wp post get "$HEADER_ID" --field=post_content)"
+	if echo "$CONTENT" | grep -q "<!-- wp:navigation" && ! echo "$CONTENT" | grep -q "\"ref\":"; then
+		NEWCONTENT="$(echo "$CONTENT" | perl -0777 -pe "s/(<!--\s*wp:navigation\s*\{)/\${1}\"ref\": $NAV_ID, /")"
+		if [ -n "$NEWCONTENT" ]; then
+			wp post update "$HEADER_ID" --post_content="$NEWCONTENT" >/dev/null && echo "Linked Navigation to header."
+		fi
+	fi
+fi
+
+# --- Admin Color Scheme --------------------------------------------------------
+echo "== Admin color scheme =="
+HAS_MODERN="$(wp eval 'global $_wp_admin_css_colors; echo isset($_wp_admin_css_colors[\"modern\"]) ? \"yes\" : \"no\";')"
+SCHEME="modern"
+[ "$HAS_MODERN" = "yes" ] || SCHEME="fresh"
+for UID in $(wp user list --field=ID); do
+	wp user meta update "$UID" admin_color "$SCHEME" >/dev/null || true
+done
+echo "Set admin color scheme to: $SCHEME"
 
 # --- Emoji & oEmbed cleanup (MU-plugin) ---------------------------------------
 echo "== Emoji & oEmbed cleanup (MU-plugin) =="
@@ -151,5 +169,5 @@ PHP
 
 # --- Finish --------------------------------------------------------------------
 echo "== Finalize =="
-wp rewrite flush --hard
+wp rewrite flush
 echo -e "\nBootstrap complete."
