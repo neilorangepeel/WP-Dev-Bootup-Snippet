@@ -21,7 +21,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 * Apply timezone, permalinks, date/time formats, and set **site language to English (UK)**.
 * Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
 * Delete default content.
-* Install/activate your plugin set (Gutenberg, Query Monitor, etc.).
+* Install/activate your plugin set (Gutenberg, Create Block Theme, Query Monitor, etc.).
 * Set **block‑theme friendly media sizes**.
 * Disable comment notifications, pingbacks/trackbacks.
 * Create a **Navigation (block) menu** with Home/Blog and best‑effort link it in the header.
@@ -49,10 +49,10 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 ### 🌍 Options
 
-* Site language → **English (UK)** (`en_GB`)
+* Site language → **English (UK)** (`en_GB`) — enforced via `language core activate` **and** `WPLANG` option
 * Timezone → `Europe/London`
 * Permalinks → `/%postname%/`
-* Random tagline (8 lowercase letters)
+* Tagline → `'Just another site'`
 * Date format → `j F Y` · Time format → `H:i`
 * Discourage search engines (dev/staging)
 
@@ -118,7 +118,8 @@ Quick checks you can run after bootstrapping:
 ````bash
 wp config get WP_ENVIRONMENT_TYPE --type=constant
 wp config get WP_MEMORY_LIMIT     --type=constant
-wp language core list --status=active   # should show en_GB as active
+wp language core list --status=active   # should show en_GB active
+wp option get WPLANG                    # should be en_GB
 wp option get permalink_structure
 wp option get timezone_string
 wp plugin list --status=active
@@ -185,7 +186,8 @@ wp config set WP_POST_REVISIONS 10 --type=constant --raw 2>/dev/null || true
 echo "== Core options =="
 wp option update timezone_string 'Europe/London'
 wp rewrite structure '/%postname%/'      # no --hard in Studio/nginx
-wp option update blogdescription "Just another site"
+# Tagline
+wp option update blogdescription 'Just another site'
 wp option update date_format 'j F Y'
 wp option update time_format 'H:i'
 wp option update blog_public 0           # discourage indexing
@@ -224,15 +226,21 @@ wp theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
 
 # ── Language (English UK) ───────────────────────────────────────────────
 echo "== Language =="
-# Core language: install + activate UK English
-wp language core install en_GB --activate >/dev/null 2>&1 || true
+# Core language: install + activate English (UK)
+wp language core install en_GB >/dev/null 2>&1 || true
+wp language core activate en_GB >/dev/null 2>&1 || true
+# Ensure DB option is set (guards against environments that ignore activate)
+wp option update WPLANG en_GB >/dev/null 2>&1 || true
+# Remove/normalize any WPLANG constant that could override the option
+wp config delete WPLANG 2>/dev/null || wp config set WPLANG en_GB --type=constant 2>/dev/null || true
 # Install UK translations for all installed plugins/themes
 wp language plugin install --all en_GB >/dev/null 2>&1 || true
 wp language theme  install --all en_GB >/dev/null 2>&1 || true
-# Set each user's admin locale to en_GB (so wp‑admin UI matches)
+# Set each user's admin locale to en_GB (so wp-admin UI matches)
 for USER_ID in $(wp user list --field=ID); do
   wp user meta update "$USER_ID" locale en_GB >/dev/null || true
 done
+echo "Site + users language set to en_GB"
 
 # ── Discussion settings ──────────────────────────────────────────────────
 echo "== Discussion & pingbacks =="
