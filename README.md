@@ -18,7 +18,7 @@ curl -sSL https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/bootstr
 Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 * Patch `wp-config.php` (debug constants, memory, environment) and **self‑heal** common mistakes.
-* Apply timezone, permalinks, and date/time formats.
+* Apply timezone, permalinks, date/time formats, and set **site language to English (UK)**.
 * Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
 * Delete default content.
 * Install/activate your plugin set (Gutenberg, Query Monitor, etc.).
@@ -49,6 +49,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 ### 🌍 Options
 
+* Site language → **English (UK)** (`en_GB`)
 * Timezone → `Europe/London`
 * Permalinks → `/%postname%/`
 * Random tagline (8 lowercase letters)
@@ -114,6 +115,15 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 Quick checks you can run after bootstrapping:
 
+````bash
+wp config get WP_ENVIRONMENT_TYPE --type=constant
+wp config get WP_MEMORY_LIMIT     --type=constant
+wp language core list --status=active   # should show en_GB as active
+wp option get permalink_structure
+wp option get timezone_string
+wp plugin list --status=active
+wp option get large_size_w ; wp option get medium_size_w ; wp option get medium_large_size_w
+wp post list --post_type=wp_navigation --fields=ID,post_title
 ```bash
 wp config get WP_ENVIRONMENT_TYPE --type=constant
 wp config get WP_MEMORY_LIMIT     --type=constant
@@ -122,7 +132,7 @@ wp option get timezone_string
 wp plugin list --status=active
 wp option get large_size_w ; wp option get medium_size_w ; wp option get medium_large_size_w
 wp post list --post_type=wp_navigation --fields=ID,post_title
-```
+````
 
 ---
 
@@ -213,6 +223,18 @@ wp plugin install gutenberg query-monitor debug-bar user-switching regenerate-th
 echo "== Themes =="
 wp theme activate twentytwentyfive || true
 wp theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
+
+# ── Language (English UK) ───────────────────────────────────────────────
+echo "== Language =="
+# Core language: install + activate UK English
+wp language core install en_GB --activate >/dev/null 2>&1 || true
+# Install UK translations for all installed plugins/themes
+wp language plugin install --all en_GB >/dev/null 2>&1 || true
+wp language theme  install --all en_GB >/dev/null 2>&1 || true
+# Set each user's admin locale to en_GB (so wp‑admin UI matches)
+for USER_ID in $(wp user list --field=ID); do
+  wp user meta update "$USER_ID" locale en_GB >/dev/null || true
+done
 
 # ── Discussion settings ──────────────────────────────────────────────────
 echo "== Discussion & pingbacks =="
