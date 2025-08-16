@@ -132,13 +132,11 @@ fi
 
 # --- Admin Color Scheme --------------------------------------------------------
 echo "== Admin color scheme =="
-HAS_MODERN="$(wp eval 'global $_wp_admin_css_colors; echo isset($_wp_admin_css_colors[\"modern\"]) ? \"yes\" : \"no\";')"
-SCHEME="modern"
-[ "$HAS_MODERN" = "yes" ] || SCHEME="fresh"
+# Set admin color to 'modern' for all users; WP falls back if it's unavailable.
 for UID in $(wp user list --field=ID); do
-	wp user meta update "$UID" admin_color "$SCHEME" >/dev/null || true
+	wp user meta update "$UID" admin_color "modern" >/dev/null || true
 done
-echo "Set admin color scheme to: $SCHEME"
+echo "Requested admin color scheme: modern (WP will fall back if not available)"
 
 # --- Emoji & oEmbed cleanup (MU-plugin) ---------------------------------------
 echo "== Emoji & oEmbed cleanup (MU-plugin) =="
