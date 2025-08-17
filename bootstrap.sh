@@ -3,6 +3,9 @@ set -euo pipefail
 
 START_TIME=$(date +%s)
 
+# Fast wrapper that skips plugins & themes (much faster CLI boot)
+wpq() { wp --skip-plugins --skip-themes "$@"; }
+
 # ── Sanity: must be in WP site root
 [ -f wp-config.php ] || { echo "wp-config.php not found in $PWD"; exit 1; }
 
@@ -25,90 +28,223 @@ if ! php -l wp-config.php >/dev/null 2>&1; then
 fi
 
 # ── Confirm WordPress loads (without plugins/themes)
-wp core is-installed --skip-plugins --skip-themes >/dev/null 2>&1 || { echo "WP-CLI can't load WordPress (check path/db)."; exit 1; }
+wpq core is-installed >/dev/null 2>&1 || { echo "WP-CLI can't load WordPress (check path/db)."; exit 1; }
 
 echo "== wp-config constants =="
 # String constants (let WP-CLI add quotes)
-wp config set WP_ENVIRONMENT_TYPE development --type=constant 2>/dev/null || true
-wp config set WP_MEMORY_LIMIT 256M --type=constant 2>/dev/null || true
+wpq config set WP_ENVIRONMENT_TYPE development --type=constant 2>/dev/null || true
+wpq config set WP_MEMORY_LIMIT 256M --type=constant 2>/dev/null || true
 # Booleans / ints (raw)
-wp config set WP_DEBUG true --type=constant --raw 2>/dev/null || true
-wp config set WP_DEBUG_LOG true --type=constant --raw 2>/dev/null || true
-wp config set WP_DEBUG_DISPLAY false --type=constant --raw 2>/dev/null || true
-wp config set SCRIPT_DEBUG true --type=constant --raw 2>/dev/null || true
-wp config set DISALLOW_FILE_EDIT true --type=constant --raw 2>/dev/null || true
-wp config set WP_DISABLE_FATAL_ERROR_HANDLER true --type=constant --raw 2>/dev/null || true
-wp config set WP_POST_REVISIONS 10 --type=constant --raw 2>/dev/null || true
+wpq config set WP_DEBUG true --type=constant --raw 2>/dev/null || true
+wpq config set WP_DEBUG_LOG true --type=constant --raw 2>/dev/null || true
+wpq config set WP_DEBUG_DISPLAY false --type=constant --raw 2>/dev/null || true
+wpq config set SCRIPT_DEBUG true --type=constant --raw 2>/dev/null || true
+wpq config set DISALLOW_FILE_EDIT true --type=constant --raw 2>/dev/null || true
+wpq config set WP_DISABLE_FATAL_ERROR_HANDLER true --type=constant --raw 2>/dev/null || true
+wpq config set WP_POST_REVISIONS 10 --type=constant --raw 2>/dev/null || true
 
-echo "== Core options =="
-wp option update timezone_string 'Europe/London'
-wp rewrite structure '/%postname%/'             # no --hard (Studio/nginx)
-wp option update blogdescription 'Just another site'
-wp option update date_format 'j F Y'
-wp option update time_format 'H:i'
-wp option update blog_public 0                  # discourage indexing
+# ───────────────────────────────────────────────────────────────────────────────
+# EVERYTHING BELOW RUNS IN ONE WP BOOTSTRAP (fast)
+# ───────────────────────────────────────────────────────────────────────────────
+echo "== Fast site setup + starter content (single eval) =="
 
-# Helper: create page if missing, return ID
-ensure_page () {
-	local TITLE="$1" SLUG="$2" ID
-	ID="$(wp post list --post_type=page --pagename="$SLUG" --format=ids)"
-	[ -n "$ID" ] || ID="$(wp post create --post_type=page --post_status=publish --post_title="$TITLE" --post_name="$SLUG" --porcelain)"
-	echo "$ID"
+wp eval-file - <<'PHP'
+<?php
+// Speed helpers
+wp_defer_term_counting( true );
+wp_defer_comment_counting( true );
+wp_suspend_cache_invalidation( true );
+if ( function_exists('set_time_limit') ) @set_time_limit(0);
+
+// ---------- Core options / settings ----------
+update_option('timezone_string', 'Europe/London');
+update_option('blogdescription', 'Just another site');
+update_option('date_format', 'j F Y');
+update_option('time_format', 'H:i');
+update_option('blog_public', 0);
+
+// Permalinks: store structure now; flush later via CLI once
+update_option('permalink_structure', '/%postname%/');
+
+// Media defaults
+update_option('thumbnail_size_w', 320);
+update_option('thumbnail_size_h', 320);
+update_option('thumbnail_crop', 1);
+update_option('medium_size_w', 900);
+update_option('medium_size_h', 0);
+update_option('medium_large_size_w', 1536);
+update_option('medium_large_size_h', 0);
+update_option('large_size_w', 1400);
+update_option('large_size_h', 0);
+update_option('image_default_size', 'large');
+
+// Discussion
+update_option('comments_notify', 0);
+update_option('moderation_notify', 0);
+update_option('default_ping_status', 'closed');
+update_option('comment_moderation', 1);
+update_option('comment_previously_approved', 0);
+
+// User locale + admin color for all users
+$users = get_users([ 'fields' => ['ID'] ]);
+foreach ($users as $u) {
+	update_user_meta($u->ID, 'locale', 'en_GB');
+	update_user_meta($u->ID, 'admin_color', 'modern');
 }
 
-echo "== Content: pages =="
-HOME_ID="$(ensure_page 'Home' 'home')"
-ABOUT_ID="$(ensure_page 'About' 'about')"
-BLOG_ID="$(ensure_page 'Blog' 'blog')"
-CONTACT_ID="$(ensure_page 'Contact' 'contact')"
-wp option update show_on_front 'page'
-wp option update page_on_front "$HOME_ID"
-wp option update page_for_posts "$BLOG_ID"
+// ---------- Pages + front/blog ----------
+function ensure_page_id($title, $slug){
+	$page = get_page_by_path($slug);
+	if ($page) return $page->ID;
+	return wp_insert_post([
+		'post_type'   => 'page',
+		'post_status' => 'publish',
+		'post_title'  => $title,
+		'post_name'   => $slug,
+	]);
+}
+$home_id    = ensure_page_id('Home','home');
+$about_id   = ensure_page_id('About','about');
+$blog_id    = ensure_page_id('Blog','blog');
+$contact_id = ensure_page_id('Contact','contact');
 
-echo "== Content: delete defaults =="
-HW_ID="$(wp post list --post_type=post --title='Hello world!' --format=ids)"; [ -z "$HW_ID" ] || wp post delete "$HW_ID" --force
-SP_ID="$(wp post list --post_type=page --title='Sample Page' --format=ids)"; [ -z "$SP_ID" ] || wp post delete "$SP_ID" --force
+update_option('show_on_front', 'page');
+update_option('page_on_front', $home_id);
+update_option('page_for_posts', $blog_id);
 
-echo "== Plugins =="
-wp plugin delete akismet hello 2>/dev/null || true
-wp plugin install gutenberg create-block-theme query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate
+// Delete WP defaults if present
+$hello = get_page_by_title('Hello world!', OBJECT, 'post');
+if ($hello) wp_delete_post($hello->ID, true);
+$sample = get_page_by_title('Sample Page', OBJECT, 'page');
+if ($sample) wp_delete_post($sample->ID, true);
 
-echo "== Themes =="
-wp theme activate twentytwentyfive || true
-wp theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
+// ---------- Theme (activate Twenty Twenty-Five quickly) ----------
+if ( function_exists('switch_theme') ) {
+	$theme = wp_get_theme('twentytwentyfive');
+	if ( $theme && $theme->exists() && ! $theme->is_active() ) {
+		switch_theme('twentytwentyfive');
+	}
+}
 
-echo "== Language (English UK) =="
-wp language core install en_GB >/dev/null 2>&1 || true
-wp language core activate en_GB >/dev/null 2>&1 || true
-wp option update WPLANG en_GB >/dev/null 2>&1 || true
-wp config delete WPLANG >/dev/null 2>&1 || wp config set WPLANG en_GB --type=constant >/dev/null 2>&1 || true
-wp language plugin install --all en_GB >/dev/null 2>&1 || true
-wp language theme install --all en_GB >/dev/null 2>&1 || true
-for USER_ID in $(wp user list --field=ID); do wp user meta update "$USER_ID" locale en_GB >/dev/null || true; done
+// ---------- Taxonomies ----------
+function ensure_term_id($taxonomy, $name, $slug) {
+	$term = get_term_by('slug', $slug, $taxonomy);
+	if ($term && !is_wp_error($term)) return intval($term->term_id);
+	$res = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
+	if (is_wp_error($res)) return 0;
+	return intval($res['term_id']);
+}
 
-echo "== Discussion =="
-wp option update comments_notify 0
-wp option update moderation_notify 0
-wp option update default_ping_status 'closed'
-wp option update comment_moderation 1
-wp option update comment_previously_approved 0
+$cat_names = ['News','Projects','Tutorials','Opinion','Notes'];
+$cat_slugs = array_map('sanitize_title', $cat_names);
+$cat_ids   = [];
+foreach ($cat_names as $i => $name) {
+	$cat_ids[] = ensure_term_id('category', $name, $cat_slugs[$i]);
+}
 
-echo "== Media defaults (block-theme friendly) =="
-# Thumbnail: square grids/cards
-wp option update thumbnail_size_w 320
-wp option update thumbnail_size_h 320
-wp option update thumbnail_crop 1
-# Medium/Large: width-only (height 0 keeps aspect)
-wp option update medium_size_w 900; wp option update medium_size_h 0
-wp option update medium_large_size_w 1536; wp option update medium_large_size_h 0
-wp option update large_size_w 1400; wp option update large_size_h 0
-wp option update image_default_size 'large'
+$tag_names = ['photography','design','art','workflow','tips','studio','lighting','gear','inspiration','behind-the-scenes'];
+foreach ($tag_names as $name) {
+	ensure_term_id('post_tag', $name, sanitize_title($name));
+}
 
-# Block themes use Navigation/Page List blocks; no classic menus/widgets.
+// ---------- Local placeholder image generation (no network) ----------
+function make_placeholder_attachment($seed, $parent_post_id = 0) {
+	if ( ! function_exists('imagecreatetruecolor') ) return 0; // no GD available
+	$upload = wp_upload_dir();
+	if ( ! empty($upload['error']) ) return 0;
 
-echo "== Admin color scheme (Modern) =="
-for USER_ID in $(wp user list --field=ID); do wp user meta update "$USER_ID" admin_color modern >/dev/null || true; done
+	$dir = trailingslashit($upload['path']);
+	wp_mkdir_p($dir);
 
+	$filename = "starter-$seed.jpg";
+	$path = $dir . $filename;
+	$w=1600; $h=900;
+
+	$im = imagecreatetruecolor($w,$h);
+	mt_srand($seed);
+	$bg  = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
+	imagefilledrectangle($im,0,0,$w,$h,$bg);
+	imagejpeg($im,$path,80);
+	imagedestroy($im);
+
+	require_once ABSPATH . 'wp-admin/includes/image.php';
+	$filetype = wp_check_filetype($filename, null);
+	$attachment_id = wp_insert_attachment([
+		'post_mime_type' => $filetype['type'],
+		'post_title'     => sanitize_file_name($filename),
+		'post_content'   => '',
+		'post_status'    => 'inherit',
+	], $path, $parent_post_id);
+
+	if ( is_wp_error($attachment_id) || ! $attachment_id ) return 0;
+
+	$attach_data = wp_generate_attachment_metadata($attachment_id, $path);
+	wp_update_attachment_metadata($attachment_id, $attach_data);
+	return intval($attachment_id);
+}
+
+// ---------- Posts (10 total: 1 draft, 1 scheduled, 8 published) ----------
+$post_titles = [
+  'Welcome to the Site',
+  'Behind the Scenes: First Shoot',
+  'Five Quick Tips for Better Lighting',
+  'Project Log: Week One',
+  'Opinion: Why Simplicity Wins',
+  'How I Organise My Workflow',
+  'Gear Notes: What’s in the Bag',
+  'Inspiration Board – August',
+  'Studio Setup Checklist',
+  'Publishing & Scheduling Test',
+];
+
+$copy = "Photography and film have always felt like a way to translate movement, light, and memory into something lasting. My work often overlaps with dance and performance, where timing and rhythm are just as important as aperture or shutter speed. Teaching has become part of that process too—sharing how tools like cameras, lenses, and even simple setups can make creativity more accessible. Whether I’m testing new gear, revisiting older cameras, or experimenting with different workflows, the focus is always on finding clarity through practice.\n\nAt the same time, I’m drawn to the possibilities of the web. WordPress, streaming setups, and custom workflows feel like an extension of the studio, a place where ideas can be built and shared. I like exploring how different pieces—lighting choices, software tools, or even the ergonomics of a workspace—come together to shape the final outcome. The process is rarely perfect, but the mix of art, technology, and curiosity keeps things moving forward.";
+
+$sched_gmt = gmdate('Y-m-d H:i:s', time() + 172800); // +48h
+
+foreach ($post_titles as $i => $title) {
+	$status = ($i === 0) ? 'draft' : (($i === 1) ? 'future' : 'publish');
+
+	$postarr = [
+		'post_title'   => $title,
+		'post_content' => $copy,
+		'post_status'  => $status,
+		'post_type'    => 'post',
+	];
+	if ($status === 'future') {
+		// Store local time for the site (convert from GMT)
+		$postarr['post_date'] = get_date_from_gmt($sched_gmt);
+	}
+
+	$pid = wp_insert_post($postarr, true);
+	if ( is_wp_error($pid) || ! $pid ) { echo "Failed to create: $title\n"; continue; }
+
+	// Random 1 category, 2 distinct tags
+	$cat_id = $cat_ids[array_rand($cat_ids)];
+	$tag_a  = $tag_names[array_rand($tag_names)];
+	do { $tag_b = $tag_names[array_rand($tag_names)]; } while ($tag_b === $tag_a);
+
+	wp_set_post_terms($pid, [$cat_id], 'category', false);
+	wp_set_post_terms($pid, [$tag_a, $tag_b], 'post_tag', false);
+
+	// Featured image (fast local)
+	$mid = make_placeholder_attachment(1000 + $i, $pid);
+	if ($mid) set_post_thumbnail($pid, $mid);
+
+	// Excerpt
+	wp_update_post(['ID' => $pid, 'post_excerpt' => "Starter excerpt for \"$title\"."]);
+
+	echo " • Post #" . ($i+1) . " ($status): $title (Cat: $cat_id, Tags: $tag_a,$tag_b, MID: " . ($mid ?: 'none') . ")\n";
+}
+
+// Restore performance flags
+wp_defer_term_counting( false );
+wp_defer_comment_counting( false );
+wp_suspend_cache_invalidation( false );
+PHP
+
+# ───────────────────────────────────────────────────────────────────────────────
+# MU-plugin: emoji & oEmbed cleanup (file write is faster outside WP)
+# ───────────────────────────────────────────────────────────────────────────────
 echo "== MU-plugin: emoji & oEmbed cleanup =="
 MU_DIR="wp-content/mu-plugins"; mkdir -p "$MU_DIR"
 cat > "$MU_DIR/dev-tweaks.php" <<'PHP'
@@ -135,154 +271,21 @@ add_action('init', function () {
 PHP
 
 # ───────────────────────────────────────────────────────────────────────────────
-# STARTER CONTENT: categories, tags, posts (with featured images)
+# Themes (light touch) — we already switched inside eval; delete extras quickly
 # ───────────────────────────────────────────────────────────────────────────────
-echo "== Starter content: taxonomies =="
+echo "== Themes =="
+wpq theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
 
-# Helpers
-ensure_term () {
-	local TAX="$1" NAME="$2" SLUG="$3" TID
-	TID="$(wp term list "$TAX" --field=term_id --slug="$SLUG")"
-	if [ -z "$TID" ]; then
-		TID="$(wp term create "$TAX" "$NAME" --slug="$SLUG" --porcelain)"
-	fi
-	echo "$TID"
-}
+# ───────────────────────────────────────────────────────────────────────────────
+# Plugins — install/activate at the END (keeps earlier steps lean)
+# ───────────────────────────────────────────────────────────────────────────────
+echo "== Plugins (installed at end for speed) =="
+wp plugin delete akismet hello 2>/dev/null || true
+wp plugin install gutenberg create-block-theme query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate
 
-# Import an image by first downloading (curl) then falling back to a local GD-generated placeholder.
-# Usage: import_image <seed>  -> echoes attachment ID or empty on failure
-import_image () {
-	local SEED="$1"
-	local TMPDIR
-	TMPDIR="$(mktemp -d /tmp/wpseed.XXXXXX)"
-	local FILE="$TMPDIR/seed_${SEED}.jpg"
-
-	# Try downloading from Picsum
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -A "Mozilla/5.0" --max-time 10 \
-			"https://picsum.photos/seed/${SEED}/1600/900" \
-			-o "$FILE" || true
-	fi
-
-	# If download failed or empty, generate a simple JPEG with PHP GD
-	if [ ! -s "$FILE" ]; then
-		php -r '
-		$path = $argv[1]; $seed = (int)$argv[2];
-		if (!function_exists("imagecreatetruecolor")) { exit(2); } // GD missing
-		mt_srand($seed);
-		$w=1600; $h=900;
-		$im = imagecreatetruecolor($w,$h);
-		$bg = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
-		imagefilledrectangle($im,0,0,$w,$h,$bg);
-		imagejpeg($im,$path,80); imagedestroy($im);
-		' "$FILE" "$SEED" || true
-	fi
-
-	# Import local file if it exists & is non-empty
-	if [ -s "$FILE" ]; then
-		wp media import "$FILE" --porcelain 2>/dev/null || true
-	else
-		echo ""  # echo empty so caller can handle gracefully
-	fi
-}
-
-# 5 categories (store IDs for post_category)
-CAT_NAMES=( "News" "Projects" "Tutorials" "Opinion" "Notes" )
-CAT_SLUGS=( "news" "projects" "tutorials" "opinion" "notes" )
-CAT_IDS=()
-for i in "${!CAT_NAMES[@]}"; do
-	CAT_IDS+=( "$(ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}")" )
-done
-
-# 10 tags (we pass names to --tags_input)
-TAG_NAMES=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
-TAG_SLUGS=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
-for i in "${!TAG_NAMES[@]}"; do
-	_="$(ensure_term post_tag "${TAG_NAMES[$i]}" "${TAG_SLUGS[$i]}")"
-done
-
-echo "== Starter content: posts =="
-
-# Future date (48 hours from now)
-SCHED_DATE="$(php -r 'echo date("Y-m-d H:i:s", time()+172800);')"
-
-# Titles
-POST_TITLES=(
-	"Welcome to the Site"
-	"Behind the Scenes: First Shoot"
-	"Five Quick Tips for Better Lighting"
-	"Project Log: Week One"
-	"Opinion: Why Simplicity Wins"
-	"How I Organise My Workflow"
-	"Gear Notes: What’s in the Bag"
-	"Inspiration Board – August"
-	"Studio Setup Checklist"
-	"Publishing & Scheduling Test"
-)
-
-# Two-paragraph generic copy
-read -r -d '' GENERIC_COPY <<'EOT' || true
-Photography and film have always felt like a way to translate movement, light, and memory into something lasting. My work often overlaps with dance and performance, where timing and rhythm are just as important as aperture or shutter speed. Teaching has become part of that process too—sharing how tools like cameras, lenses, and even simple setups can make creativity more accessible. Whether I’m testing new gear, revisiting older cameras, or experimenting with different workflows, the focus is always on finding clarity through practice.
-
-At the same time, I’m drawn to the possibilities of the web. WordPress, streaming setups, and custom workflows feel like an extension of the studio, a place where ideas can be built and shared. I like exploring how different pieces—lighting choices, software tools, or even the ergonomics of a workspace—come together to shape the final outcome. The process is rarely perfect, but the mix of art, technology, and curiosity keeps things moving forward.
-EOT
-
-# Portable random pickers
-pick_random_category_id () {
-	local n=${#CAT_IDS[@]}
-	echo "${CAT_IDS[$(( RANDOM % n ))]}"
-}
-pick_two_distinct_tag_names_csv () {
-	local n=${#TAG_NAMES[@]}
-	local i=$(( RANDOM % n ))
-	local j
-	while :; do
-		j=$(( RANDOM % n ))
-		[ "$j" -ne "$i" ] && break
-	done
-	echo "${TAG_NAMES[$i]},${TAG_NAMES[$j]}"
-}
-
-# Create posts
-for i in "${!POST_TITLES[@]}"; do
-	TITLE="${POST_TITLES[$i]}"
-
-	if [ "$i" -eq 0 ]; then
-		STATUS="draft"
-	elif [ "$i" -eq 1 ]; then
-		STATUS="future"
-	else
-		STATUS="publish"
-	fi
-
-	# Build command safely and optionally add --post_date
-	CMD=( wp post create
-		--post_type=post
-		--post_status="$STATUS"
-		--post_title="$TITLE"
-		--post_content="$GENERIC_COPY"
-	)
-	[ "$STATUS" = "future" ] && CMD+=( --post_date="$SCHED_DATE" )
-
-	PID="$("${CMD[@]}" --porcelain)"
-
-	# Random category (ID) and 2 random tag names
-	CAT_ID="$(pick_random_category_id)"
-	TAGS_CSV="$(pick_two_distinct_tag_names_csv)"
-
-	# Assign taxonomy terms (compat across WP-CLI versions)
-	wp post update "$PID" --post_category="$CAT_ID" --tags_input="$TAGS_CSV" >/dev/null
-
-	# Featured image (download or generate locally, then import)
-	MID="$(import_image "$((1000+i))")"
-	[ -n "$MID" ] && wp post meta update "$PID" _thumbnail_id "$MID" >/dev/null
-
-	# Optional excerpt
-	wp post update "$PID" --post_excerpt="Starter excerpt for \"$TITLE\"." >/dev/null
-
-	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat ID: $CAT_ID, Tags: $TAGS_CSV, MID: ${MID:-none})"
-done
-
+# ───────────────────────────────────────────────────────────────────────────────
+# Finalize: single rewrite flush
+# ───────────────────────────────────────────────────────────────────────────────
 echo "== Finalize =="
 wp rewrite flush
 
@@ -292,6 +295,6 @@ mins=$(( ELAPSED / 60 ))
 secs=$(( ELAPSED % 60 ))
 
 echo -e "
-Bootstrap complete (with starter content).
+Bootstrap complete (fast path with single WP bootstrap for content).
 Execution time: ${mins}m ${secs}s
 "
