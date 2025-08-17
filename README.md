@@ -20,7 +20,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 - Apply timezone, permalinks, date/time formats, and set **site language to English (UK)**.
 - Create **Home**, **About**, **Blog**, **Contact** pages and set a static front page.
 - Delete default content (`Hello world!`, `Sample Page`).
-- Create **categories**, **tags**, and **10 starter posts** with random assignments + featured image placeholders.
+- Create **categories**, **tags**, and **10 starter posts** with random assignments + coloured featured image placeholders.
 - Install/activate your plugin set (Gutenberg, Create Block Theme, Query Monitor, etc.).
 - Set **block-theme friendly media sizes**.
 - Disable comment notifications, pingbacks/trackbacks.
@@ -57,12 +57,8 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 - Creates **Home**, **About**, **Blog**, **Contact** pages
 - Sets static front page + posts page
 - Removes “Hello world!” + “Sample Page”
-- Adds 5 categories + 10 tags
-- Creates **10 posts** (draft, scheduled, published mix)
-  - Random category + 2 random tags each
-  - 2-paragraph generic content
-  - Auto-generated 1600×900 coloured placeholder thumbnails
-  - Excerpts auto-set
+- Adds categories, tags
+- Creates **10 starter posts** with randomised category/tag + coloured featured image
 
 ### 🔌 Plugins
 - Deletes: Akismet, Hello Dolly
@@ -94,30 +90,7 @@ Replace `YOUR-USERNAME/YOUR-REPO` with your GitHub repo path. This will:
 
 ---
 
-## 🧩 Alfred integration
-- Save the one-liner as a snippet in Alfred (e.g., keyword `;wpboot`).
-- Type `;wpboot` in your terminal → it pastes the curl command.
-
----
-
-## 🧪 Verify (optional)
-
-```bash
-wp config get WP_ENVIRONMENT_TYPE --type=constant
-wp config get WP_MEMORY_LIMIT     --type=constant
-wp language core list --status=active   # should show en_GB active
-wp option get WPLANG                    # should be en_GB
-wp option get permalink_structure
-wp option get timezone_string
-wp plugin list --status=active
-wp post list --post_type=post --format=table --fields=ID,post_title,post_status
-```
-
----
-
 ## 📜 Reference: `bootstrap.sh`
-
-> The script is short, clean, and prints elapsed execution time.
 
 ```bash
 #!/usr/bin/env bash
@@ -174,8 +147,8 @@ printf "\nBootstrap complete in %dm %ds\n" $((ELAPSED/60)) $((ELAPSED%60))
 ---
 
 ## 🔄 Updating
-- Keep `bootstrap.sh` in your GitHub repo.
-- Use the one-liner to always fetch the latest.
+- Keep your canonical `bootstrap.sh` in GitHub; edit as your defaults evolve.
+- Use the one-liner to always pull the newest version.
 
 ---
 
