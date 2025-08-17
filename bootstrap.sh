@@ -120,16 +120,16 @@ update_option('show_on_front', 'page');
 update_option('page_on_front', $home_id);
 update_option('page_for_posts', $blog_id);
 
-// Delete WP defaults if present
-foreach (['Hello world!','Sample Page'] as $title) {
-	$q = new WP_Query([
-		'post_status'    => 'any',
-		'title'          => $title,
-		'posts_per_page' => 1,
-		'no_found_rows'  => true,
-		'fields'         => 'ids',
-	]);
-	if ($q->have_posts()) wp_delete_post(intval($q->posts[0]), true);
+// ---------- Delete WP defaults by slug (reliable) ----------
+$defaults = [
+	['hello-world', 'post'],
+	['sample-page', 'page'],
+];
+foreach ($defaults as [$slug, $type]) {
+	$found = get_page_by_path($slug, OBJECT, $type);
+	if ( $found ) {
+		wp_delete_post($found->ID, true);
+	}
 }
 
 // ---------- Theme ----------
