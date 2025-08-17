@@ -172,41 +172,34 @@ foreach ($tag_names as $name) {
 	ensure_term_id('post_tag', $name, sanitize_title($name));
 }
 
-// ---------- Local placeholder image generation (no network) ----------
-function make_placeholder_attachment($seed, $parent_post_id = 0) {
-	if ( ! function_exists('imagecreatetruecolor') ) return 0; // no GD available
-	$upload = wp_upload_dir();
-	if ( ! empty($upload['error']) ) return 0;
+// ---------- Create a local placeholder image (coloured block) and attach to Media Library ----------
+function make_placeholder_attachment($seed, $w=1600, $h=900) {
+    $uploads = wp_upload_dir();
+    $dir = $uploads['path'];
+    $file = "$dir/placeholder-$seed.jpg";
 
-	$dir = trailingslashit($upload['path']);
-	wp_mkdir_p($dir);
+    // Generate a coloured block image with GD
+    $im = imagecreatetruecolor($w,$h);
+    $bg = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
+    imagefilledrectangle($im,0,0,$w,$h,$bg);
+    imagejpeg($im,$file,80);
+    imagedestroy($im);
 
-	$filename = "starter-$seed.jpg";
-	$path = $dir . $filename;
-	$w=1600; $h=900;
-
-	$im = imagecreatetruecolor($w,$h);
-	mt_srand($seed);
-	$bg  = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
-	imagefilledrectangle($im,0,0,$w,$h,$bg);
-	imagejpeg($im,$path,80);
-	imagedestroy($im);
-
-	require_once ABSPATH . 'wp-admin/includes/image.php';
-	$filetype = wp_check_filetype($filename, null);
-	$attachment_id = wp_insert_attachment([
-		'post_mime_type' => $filetype['type'],
-		'post_title'     => sanitize_file_name($filename),
-		'post_content'   => '',
-		'post_status'    => 'inherit',
-	], $path, $parent_post_id);
-
-	if ( is_wp_error($attachment_id) || ! $attachment_id ) return 0;
-
-	$attach_data = wp_generate_attachment_metadata($attachment_id, $path);
-	wp_update_attachment_metadata($attachment_id, $attach_data);
-	return intval($attachment_id);
+    // Add to Media Library
+    $filetype = wp_check_filetype(basename($file), null);
+    $attachment = [
+        'post_mime_type' => $filetype['type'],
+        'post_title'     => "Placeholder $seed",
+        'post_content'   => '',
+        'post_status'    => 'inherit'
+    ];
+    $attach_id = wp_insert_attachment($attachment, $file);
+    require_once(ABSPATH . 'wp-admin/includes/image.php');
+    $attach_data = wp_generate_attachment_metadata($attach_id, $file);
+    wp_update_attachment_metadata($attach_id, $attach_data);
+    return $attach_id;
 }
+
 
 // ---------- Posts (10 total: 1 draft, 1 scheduled, 8 published) ----------
 $post_titles = [
