@@ -94,9 +94,6 @@ foreach ($users as $u) {
 
 // ---------- Pages + front/blog ----------
 function ensure_page_id($title, $slug){
-	$page = get_page_by_path($slug);
-	if ($page) return $page->ID;
-
 	$q = new WP_Query([
 		'post_type'      => 'page',
 		'post_status'    => 'any',
@@ -123,14 +120,9 @@ update_option('show_on_front', 'page');
 update_option('page_on_front', $home_id);
 update_option('page_for_posts', $blog_id);
 
-// Delete WP defaults if present (no deprecated functions)
-foreach ([
-	['Hello world!','post'],
-	['Sample Page','page'],
-] as $pair) {
-	list($title, $type) = $pair;
+// Delete WP defaults if present
+foreach (['Hello world!','Sample Page'] as $title) {
 	$q = new WP_Query([
-		'post_type'      => $type,
 		'post_status'    => 'any',
 		'title'          => $title,
 		'posts_per_page' => 1,
@@ -140,7 +132,7 @@ foreach ([
 	if ($q->have_posts()) wp_delete_post(intval($q->posts[0]), true);
 }
 
-// ---------- Theme (activate Twenty Twenty-Five safely) ----------
+// ---------- Theme ----------
 if ( function_exists('switch_theme') ) {
 	$curr = wp_get_theme()->get_stylesheet();
 	if ( $curr !== 'twentytwentyfive' ) {
@@ -161,10 +153,9 @@ function ensure_term_id($taxonomy, $name, $slug) {
 }
 
 $cat_names = ['News','Projects','Tutorials','Opinion','Notes'];
-$cat_slugs = array_map('sanitize_title', $cat_names);
 $cat_ids   = [];
-foreach ($cat_names as $i => $name) {
-	$cat_ids[] = ensure_term_id('category', $name, $cat_slugs[$i]);
+foreach ($cat_names as $name) {
+	$cat_ids[] = ensure_term_id('category', $name, sanitize_title($name));
 }
 
 $tag_names = ['photography','design','art','workflow','tips','studio','lighting','gear','inspiration','behind-the-scenes'];
@@ -172,15 +163,15 @@ foreach ($tag_names as $name) {
 	ensure_term_id('post_tag', $name, sanitize_title($name));
 }
 
-// ---------- Local placeholder image (coloured block) ----------
-function make_placeholder_attachment($seed, $parent_post_id = 0, $w = 1600, $h = 900) {
+// ---------- Placeholder image (always 1600x900) ----------
+function make_placeholder_attachment($seed, $parent_post_id = 0) {
+	$w = 1600; $h = 900; // fixed dimensions
+
 	$uploads = wp_upload_dir();
 	if ( ! empty($uploads['error']) ) return 0;
-
 	wp_mkdir_p($uploads['path']);
 	$file = trailingslashit($uploads['path']) . "placeholder-$seed.jpg";
 
-	// Generate a coloured block image with GD
 	if ( ! function_exists('imagecreatetruecolor') ) return 0;
 	$im = imagecreatetruecolor($w, $h);
 	mt_srand($seed);
@@ -189,7 +180,6 @@ function make_placeholder_attachment($seed, $parent_post_id = 0, $w = 1600, $h =
 	imagejpeg($im, $file, 80);
 	imagedestroy($im);
 
-	// Add to Media Library (attached to parent)
 	require_once ABSPATH . 'wp-admin/includes/image.php';
 	$filetype = wp_check_filetype(basename($file), null);
 	$attachment_id = wp_insert_attachment([
@@ -200,14 +190,13 @@ function make_placeholder_attachment($seed, $parent_post_id = 0, $w = 1600, $h =
 	], $file, $parent_post_id);
 
 	if ( is_wp_error($attachment_id) || ! $attachment_id ) return 0;
-
 	$attach_data = wp_generate_attachment_metadata($attachment_id, $file);
 	wp_update_attachment_metadata($attachment_id, $attach_data);
 
 	return (int) $attachment_id;
 }
 
-// ---------- Posts (10 total: 1 draft, 1 scheduled, 8 published) ----------
+// ---------- Posts ----------
 $post_titles = [
   'Welcome to the Site',
   'Behind the Scenes: First Shoot',
@@ -227,7 +216,6 @@ $sched_gmt = gmdate('Y-m-d H:i:s', time() + 172800); // +48h
 
 foreach ($post_titles as $i => $title) {
 	$status = ($i === 0) ? 'draft' : (($i === 1) ? 'future' : 'publish');
-
 	$postarr = [
 		'post_title'   => $title,
 		'post_content' => $copy,
@@ -241,7 +229,6 @@ foreach ($post_titles as $i => $title) {
 	$pid = wp_insert_post($postarr, true);
 	if ( is_wp_error($pid) || ! $pid ) { echo "Failed to create: $title\n"; continue; }
 
-	// Random 1 category, 2 distinct tags
 	$cat_id = $cat_ids[array_rand($cat_ids)];
 	$tag_a  = $tag_names[array_rand($tag_names)];
 	do { $tag_b = $tag_names[array_rand($tag_names)]; } while ($tag_b === $tag_a);
@@ -249,11 +236,9 @@ foreach ($post_titles as $i => $title) {
 	wp_set_post_terms($pid, [$cat_id], 'category', false);
 	wp_set_post_terms($pid, [$tag_a, $tag_b], 'post_tag', false);
 
-	// Featured image (fast local, correct 1600x900)
-	$mid = make_placeholder_attachment(1000 + $i, $pid, 1600, 900);
+	$mid = make_placeholder_attachment(1000 + $i, $pid);
 	if ($mid) set_post_thumbnail($pid, $mid);
 
-	// Excerpt
 	wp_update_post(['ID' => $pid, 'post_excerpt' => "Starter excerpt for \"$title\"."]);
 
 	echo " • Post #" . ($i+1) . " ($status): $title (Cat: $cat_id, Tags: $tag_a,$tag_b, MID: " . ($mid ?: 'none') . ")\n";
@@ -266,7 +251,7 @@ wp_suspend_cache_invalidation( false );
 PHP
 
 # ───────────────────────────────────────────────────────────────────────────────
-# MU-plugin: emoji & oEmbed cleanup (file write is fast outside WP)
+# MU-plugin: emoji & oEmbed cleanup
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== MU-plugin: emoji & oEmbed cleanup =="
 MU_DIR="wp-content/mu-plugins"; mkdir -p "$MU_DIR"
@@ -277,7 +262,6 @@ Plugin Name: Dev Tweaks (disable emojis & oEmbed)
 Description: Small front-end cleanups for dev/staging.
 */
 add_action('init', function () {
-	// Emojis
 	remove_action('wp_head', 'print_emoji_detection_script', 7);
 	remove_action('admin_print_scripts', 'print_emoji_detection_script');
 	remove_action('wp_print_styles', 'print_emoji_styles');
@@ -285,7 +269,6 @@ add_action('init', function () {
 	remove_filter('the_content_feed', 'wp_staticize_emoji');
 	remove_filter('comment_text_rss', 'wp_staticize_emoji');
 	remove_filter('wp_mail', 'wp_staticize_emoji_for_email');
-	// oEmbed
 	remove_action('wp_head', 'wp_oembed_add_discovery_links');
 	remove_action('wp_head', 'wp_oembed_add_host_js');
 	remove_filter('oembed_dataparse', 'wp_filter_oembed_result', 10);
@@ -294,20 +277,20 @@ add_action('init', function () {
 PHP
 
 # ───────────────────────────────────────────────────────────────────────────────
-# Themes — delete extras quickly (active theme already set inside eval)
+# Themes — delete extras
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== Themes =="
 wpq theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
 
 # ───────────────────────────────────────────────────────────────────────────────
-# Plugins — install/activate at the END (keeps earlier steps lean)
+# Plugins — install/activate at the END
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== Plugins (installed at end for speed) =="
 wp plugin delete akismet hello 2>/dev/null || true
 wp plugin install gutenberg create-block-theme query-monitor debug-bar user-switching regenerate-thumbnails wp-mail-logging --activate
 
 # ───────────────────────────────────────────────────────────────────────────────
-# Finalize: single rewrite flush
+# Finalize
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== Finalize =="
 wp rewrite flush
