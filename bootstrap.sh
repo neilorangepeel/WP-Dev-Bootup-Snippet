@@ -123,7 +123,7 @@ update_option('show_on_front', 'page');
 update_option('page_on_front', $home_id);
 update_option('page_for_posts', $blog_id);
 
-// Delete WP defaults if present (use WP_Query instead of deprecated get_page_by_title)
+// Delete WP defaults if present (no deprecated functions)
 foreach ([
 	['Hello world!','post'],
 	['Sample Page','page'],
@@ -172,34 +172,40 @@ foreach ($tag_names as $name) {
 	ensure_term_id('post_tag', $name, sanitize_title($name));
 }
 
-// ---------- Create a local placeholder image (coloured block) and attach to Media Library ----------
-function make_placeholder_attachment($seed, $w=1600, $h=900) {
-    $uploads = wp_upload_dir();
-    $dir = $uploads['path'];
-    $file = "$dir/placeholder-$seed.jpg";
+// ---------- Local placeholder image (coloured block) ----------
+function make_placeholder_attachment($seed, $parent_post_id = 0, $w = 1600, $h = 900) {
+	$uploads = wp_upload_dir();
+	if ( ! empty($uploads['error']) ) return 0;
 
-    // Generate a coloured block image with GD
-    $im = imagecreatetruecolor($w,$h);
-    $bg = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
-    imagefilledrectangle($im,0,0,$w,$h,$bg);
-    imagejpeg($im,$file,80);
-    imagedestroy($im);
+	wp_mkdir_p($uploads['path']);
+	$file = trailingslashit($uploads['path']) . "placeholder-$seed.jpg";
 
-    // Add to Media Library
-    $filetype = wp_check_filetype(basename($file), null);
-    $attachment = [
-        'post_mime_type' => $filetype['type'],
-        'post_title'     => "Placeholder $seed",
-        'post_content'   => '',
-        'post_status'    => 'inherit'
-    ];
-    $attach_id = wp_insert_attachment($attachment, $file);
-    require_once(ABSPATH . 'wp-admin/includes/image.php');
-    $attach_data = wp_generate_attachment_metadata($attach_id, $file);
-    wp_update_attachment_metadata($attach_id, $attach_data);
-    return $attach_id;
+	// Generate a coloured block image with GD
+	if ( ! function_exists('imagecreatetruecolor') ) return 0;
+	$im = imagecreatetruecolor($w, $h);
+	mt_srand($seed);
+	$bg = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
+	imagefilledrectangle($im, 0, 0, $w, $h, $bg);
+	imagejpeg($im, $file, 80);
+	imagedestroy($im);
+
+	// Add to Media Library (attached to parent)
+	require_once ABSPATH . 'wp-admin/includes/image.php';
+	$filetype = wp_check_filetype(basename($file), null);
+	$attachment_id = wp_insert_attachment([
+		'post_mime_type' => $filetype['type'],
+		'post_title'     => "Placeholder $seed",
+		'post_content'   => '',
+		'post_status'    => 'inherit',
+	], $file, $parent_post_id);
+
+	if ( is_wp_error($attachment_id) || ! $attachment_id ) return 0;
+
+	$attach_data = wp_generate_attachment_metadata($attachment_id, $file);
+	wp_update_attachment_metadata($attachment_id, $attach_data);
+
+	return (int) $attachment_id;
 }
-
 
 // ---------- Posts (10 total: 1 draft, 1 scheduled, 8 published) ----------
 $post_titles = [
@@ -243,8 +249,8 @@ foreach ($post_titles as $i => $title) {
 	wp_set_post_terms($pid, [$cat_id], 'category', false);
 	wp_set_post_terms($pid, [$tag_a, $tag_b], 'post_tag', false);
 
-	// Featured image (fast local)
-	$mid = make_placeholder_attachment(1000 + $i, $pid);
+	// Featured image (fast local, correct 1600x900)
+	$mid = make_placeholder_attachment(1000 + $i, $pid, 1600, 900);
 	if ($mid) set_post_thumbnail($pid, $mid);
 
 	// Excerpt
