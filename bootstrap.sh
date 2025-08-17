@@ -159,14 +159,14 @@ import_image () {
 CAT_NAMES=( "News" "Projects" "Tutorials" "Opinion" "Notes" )
 CAT_SLUGS=( "news" "projects" "tutorials" "opinion" "notes" )
 for i in "${!CAT_NAMES[@]}"; do
-	ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}"
+	_="$(ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}")"
 done
 
 # 10 tags
 TAG_NAMES=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 TAG_SLUGS=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 for i in "${!TAG_NAMES[@]}"; do
-	ensure_term post_tag "${TAG_NAMES[$i]}" "${TAG_SLUGS[$i]}"
+	_="$(ensure_term post_tag "${TAG_NAMES[$i]}" "${TAG_SLUGS[$i]}")"
 done
 
 echo "== Starter content: posts =="
@@ -211,7 +211,7 @@ pick_two_distinct_tags_csv () {
 	echo "${TAG_SLUGS[$i]},${TAG_SLUGS[$j]}"
 }
 
-# Create posts (no unbound DATE_ARG)
+# Create posts
 for i in "${!POST_TITLES[@]}"; do
 	TITLE="${POST_TITLES[$i]}"
 
@@ -238,9 +238,9 @@ for i in "${!POST_TITLES[@]}"; do
 	CAT_SLUG="$(pick_random_category_slug)"
 	wp post term set "$PID" category "$CAT_SLUG" --by=slug >/dev/null
 
-	# Random tags (2 distinct)
+	# Random tags (2 distinct) — no --append (compat)
 	TAGS_CSV="$(pick_two_distinct_tags_csv)"
-	wp post term set "$PID" post_tag "$TAGS_CSV" --by=slug --append >/dev/null
+	wp post term set "$PID" post_tag "$TAGS_CSV" --by=slug >/dev/null
 
 	# Featured image via Picsum
 	IMG_URL="https://picsum.photos/seed/wpseed$((1000+i))/1600/900"
