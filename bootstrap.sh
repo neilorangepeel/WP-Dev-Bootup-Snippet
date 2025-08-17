@@ -195,53 +195,70 @@ Photography and film have always felt like a way to translate movement, light, a
 At the same time, I’m drawn to the possibilities of the web. WordPress, streaming setups, and custom workflows feel like an extension of the studio, a place where ideas can be built and shared. I like exploring how different pieces—lighting choices, software tools, or even the ergonomics of a workspace—come together to shape the final outcome. The process is rarely perfect, but the mix of art, technology, and curiosity keeps things moving forward.
 EOT
 
-# Create posts
+# Portable random pickers (no 'shuf' needed)
+pick_random_category_slug () {
+	local n=${#CAT_SLUGS[@]}
+	echo "${CAT_SLUGS[$(( RANDOM % n ))]}"
+}
+pick_two_distinct_tags_csv () {
+	local n=${#TAG_SLUGS[@]}
+	local i=$(( RANDOM % n ))
+	local j
+	while :; do
+		j=$(( RANDOM % n ))
+		[ "$j" -ne "$i" ] && break
+	done
+	echo "${TAG_SLUGS[$i]},${TAG_SLUGS[$j]}"
+}
+
+# Create posts (no unbound DATE_ARG)
 for i in "${!POST_TITLES[@]}"; do
 	TITLE="${POST_TITLES[$i]}"
 
 	if [ "$i" -eq 0 ]; then
 		STATUS="draft"
-		DATE_ARG=()
 	elif [ "$i" -eq 1 ]; then
 		STATUS="future"
-		DATE_ARG=( --post_date="$SCHED_DATE" )
 	else
 		STATUS="publish"
-		DATE_ARG=()
 	fi
 
-	PID="$(wp post create \
-		--post_type=post \
-		--post_status="$STATUS" \
-		--post_title="$TITLE" \
-		--post_content="$GENERIC_COPY" \
-		"${DATE_ARG[@]}" \
-		--porcelain)"
+	# Build command safely and optionally add --post_date
+	CMD=( wp post create
+		--post_type=post
+		--post_status="$STATUS"
+		--post_title="$TITLE"
+		--post_content="$GENERIC_COPY"
+	)
+	[ "$STATUS" = "future" ] && CMD+=( --post_date="$SCHED_DATE" )
 
-	# Random category
-	CAT_SLUG="${CAT_SLUGS[$(( RANDOM % ${#CAT_SLUGS[@]} ))]}"
+	PID="$("${CMD[@]}" --porcelain)"
+
+	# Random category (1)
+	CAT_SLUG="$(pick_random_category_slug)"
 	wp post term set "$PID" category "$CAT_SLUG" --by=slug >/dev/null
 
-	# Random 2 tags
-	SHUFFLED_TAGS=($(printf "%s\n" "${TAG_SLUGS[@]}" | shuf))
-	TAG1="${SHUFFLED_TAGS[0]}"
-	TAG2="${SHUFFLED_TAGS[1]}"
-	wp post term set "$PID" post_tag "$TAG1,$TAG2" --by=slug --append >/dev/null
+	# Random tags (2 distinct)
+	TAGS_CSV="$(pick_two_distinct_tags_csv)"
+	wp post term set "$PID" post_tag "$TAGS_CSV" --by=slug --append >/dev/null
 
 	# Featured image via Picsum
 	IMG_URL="https://picsum.photos/seed/wpseed$((1000+i))/1600/900"
 	MID="$(import_image "$IMG_URL")"
-	if [ -n "$MID" ]; then
-		wp post meta update "$PID" _thumbnail_id "$MID" >/dev/null
-	fi
+	[ -n "$MID" ] && wp post meta update "$PID" _thumbnail_id "$MID" >/dev/null
 
-	wp post update "$PID" --post_excerpt="Starter excerpt for “$TITLE”." >/dev/null
+	wp post update "$PID" --post_excerpt="Starter excerpt for \"$TITLE\"." >/dev/null
 
-	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat: $CAT_SLUG, Tags: $TAG1, $TAG2)"
+	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat: $CAT_SLUG, Tags: $TAGS_CSV)"
 done
 
 echo "== Finalize =="
 wp rewrite flush
+
+END_TIME=$(date +%s)
+ELAPSED=$(( END_TIME - START_TIME ))
+mins=$(( ELAPSED / 60 ))
+secs=$(( ELAPSED % 60 ))
 
 echo -e "
 Bootstrap complete (with starter content).
