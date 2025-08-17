@@ -3,7 +3,7 @@ set -euo pipefail
 
 START_TIME=$(date +%s)
 
-# Fast wrapper that skips plugins & themes (much faster CLI boot)
+# Fast wrapper that skips plugins & themes to speed up CLI boots
 wpq() { wp --skip-plugins --skip-themes "$@"; }
 
 # ── Sanity: must be in WP site root
@@ -96,6 +96,17 @@ foreach ($users as $u) {
 function ensure_page_id($title, $slug){
 	$page = get_page_by_path($slug);
 	if ($page) return $page->ID;
+
+	$q = new WP_Query([
+		'post_type'      => 'page',
+		'post_status'    => 'any',
+		'name'           => $slug,
+		'posts_per_page' => 1,
+		'no_found_rows'  => true,
+		'fields'         => 'ids',
+	]);
+	if ($q->have_posts()) return intval($q->posts[0]);
+
 	return wp_insert_post([
 		'post_type'   => 'page',
 		'post_status' => 'publish',
@@ -112,17 +123,31 @@ update_option('show_on_front', 'page');
 update_option('page_on_front', $home_id);
 update_option('page_for_posts', $blog_id);
 
-// Delete WP defaults if present
-$hello = get_page_by_title('Hello world!', OBJECT, 'post');
-if ($hello) wp_delete_post($hello->ID, true);
-$sample = get_page_by_title('Sample Page', OBJECT, 'page');
-if ($sample) wp_delete_post($sample->ID, true);
+// Delete WP defaults if present (use WP_Query instead of deprecated get_page_by_title)
+foreach ([
+	['Hello world!','post'],
+	['Sample Page','page'],
+] as $pair) {
+	list($title, $type) = $pair;
+	$q = new WP_Query([
+		'post_type'      => $type,
+		'post_status'    => 'any',
+		'title'          => $title,
+		'posts_per_page' => 1,
+		'no_found_rows'  => true,
+		'fields'         => 'ids',
+	]);
+	if ($q->have_posts()) wp_delete_post(intval($q->posts[0]), true);
+}
 
-// ---------- Theme (activate Twenty Twenty-Five quickly) ----------
+// ---------- Theme (activate Twenty Twenty-Five safely) ----------
 if ( function_exists('switch_theme') ) {
-	$theme = wp_get_theme('twentytwentyfive');
-	if ( $theme && $theme->exists() && ! $theme->is_active() ) {
-		switch_theme('twentytwentyfive');
+	$curr = wp_get_theme()->get_stylesheet();
+	if ( $curr !== 'twentytwentyfive' ) {
+		$tt5 = wp_get_theme('twentytwentyfive');
+		if ( $tt5 && $tt5->exists() ) {
+			switch_theme('twentytwentyfive');
+		}
 	}
 }
 
@@ -211,7 +236,6 @@ foreach ($post_titles as $i => $title) {
 		'post_type'    => 'post',
 	];
 	if ($status === 'future') {
-		// Store local time for the site (convert from GMT)
 		$postarr['post_date'] = get_date_from_gmt($sched_gmt);
 	}
 
@@ -243,7 +267,7 @@ wp_suspend_cache_invalidation( false );
 PHP
 
 # ───────────────────────────────────────────────────────────────────────────────
-# MU-plugin: emoji & oEmbed cleanup (file write is faster outside WP)
+# MU-plugin: emoji & oEmbed cleanup (file write is fast outside WP)
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== MU-plugin: emoji & oEmbed cleanup =="
 MU_DIR="wp-content/mu-plugins"; mkdir -p "$MU_DIR"
@@ -271,7 +295,7 @@ add_action('init', function () {
 PHP
 
 # ───────────────────────────────────────────────────────────────────────────────
-# Themes (light touch) — we already switched inside eval; delete extras quickly
+# Themes — delete extras quickly (active theme already set inside eval)
 # ───────────────────────────────────────────────────────────────────────────────
 echo "== Themes =="
 wpq theme delete twentytwentyfour twentytwentythree 2>/dev/null || true
