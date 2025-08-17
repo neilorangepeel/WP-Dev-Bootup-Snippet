@@ -134,24 +134,59 @@ add_action('init', function () {
 });
 PHP
 
+# ───────────────────────────────────────────────────────────────────────────────
+# STARTER CONTENT: categories, tags, posts (with featured images)
+# ───────────────────────────────────────────────────────────────────────────────
 echo "== Starter content: taxonomies =="
 
 # Helpers
 ensure_term () {
-	# ensure_term <taxonomy> <name> <slug> -> echoes term_id
 	local TAX="$1" NAME="$2" SLUG="$3" TID
 	TID="$(wp term list "$TAX" --field=term_id --slug="$SLUG")"
-	[ -n "$TID" ] || TID="$(wp term create "$TAX" "$NAME" --slug="$SLUG" --porcelain)"
+	if [ -z "$TID" ]; then
+		TID="$(wp term create "$TAX" "$NAME" --slug="$SLUG" --porcelain)"
+	fi
 	echo "$TID"
 }
 
+# Import an image by first downloading (curl) then falling back to a local GD-generated placeholder.
+# Usage: import_image <seed>  -> echoes attachment ID or empty on failure
 import_image () {
-	local URL="$1" MID
-	MID="$(wp media import "$URL" --porcelain 2>/dev/null || true)"
-	echo "$MID"
+	local SEED="$1"
+	local TMPDIR
+	TMPDIR="$(mktemp -d /tmp/wpseed.XXXXXX)"
+	local FILE="$TMPDIR/seed_${SEED}.jpg"
+
+	# Try downloading from Picsum
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL -A "Mozilla/5.0" --max-time 10 \
+			"https://picsum.photos/seed/${SEED}/1600/900" \
+			-o "$FILE" || true
+	fi
+
+	# If download failed or empty, generate a simple JPEG with PHP GD
+	if [ ! -s "$FILE" ]; then
+		php -r '
+		$path = $argv[1]; $seed = (int)$argv[2];
+		if (!function_exists("imagecreatetruecolor")) { exit(2); } // GD missing
+		mt_srand($seed);
+		$w=1600; $h=900;
+		$im = imagecreatetruecolor($w,$h);
+		$bg = imagecolorallocate($im, mt_rand(40,200), mt_rand(40,200), mt_rand(40,200));
+		imagefilledrectangle($im,0,0,$w,$h,$bg);
+		imagejpeg($im,$path,80); imagedestroy($im);
+		' "$FILE" "$SEED" || true
+	fi
+
+	# Import local file if it exists & is non-empty
+	if [ -s "$FILE" ]; then
+		wp media import "$FILE" --porcelain 2>/dev/null || true
+	else
+		echo ""  # echo empty so caller can handle gracefully
+	fi
 }
 
-# 5 categories (store names, slugs, AND term IDs)
+# 5 categories (store IDs for post_category)
 CAT_NAMES=( "News" "Projects" "Tutorials" "Opinion" "Notes" )
 CAT_SLUGS=( "news" "projects" "tutorials" "opinion" "notes" )
 CAT_IDS=()
@@ -159,7 +194,7 @@ for i in "${!CAT_NAMES[@]}"; do
 	CAT_IDS+=( "$(ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}")" )
 done
 
-# 10 tags (store names and slugs; use names for --tags_input)
+# 10 tags (we pass names to --tags_input)
 TAG_NAMES=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 TAG_SLUGS=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 for i in "${!TAG_NAMES[@]}"; do
@@ -205,11 +240,10 @@ pick_two_distinct_tag_names_csv () {
 		j=$(( RANDOM % n ))
 		[ "$j" -ne "$i" ] && break
 	done
-	# --tags_input expects names (comma-separated)
 	echo "${TAG_NAMES[$i]},${TAG_NAMES[$j]}"
 }
 
-# Create posts (assign terms via wp post update to avoid --append issues)
+# Create posts
 for i in "${!POST_TITLES[@]}"; do
 	TITLE="${POST_TITLES[$i]}"
 
@@ -221,6 +255,7 @@ for i in "${!POST_TITLES[@]}"; do
 		STATUS="publish"
 	fi
 
+	# Build command safely and optionally add --post_date
 	CMD=( wp post create
 		--post_type=post
 		--post_status="$STATUS"
@@ -238,14 +273,14 @@ for i in "${!POST_TITLES[@]}"; do
 	# Assign taxonomy terms (compat across WP-CLI versions)
 	wp post update "$PID" --post_category="$CAT_ID" --tags_input="$TAGS_CSV" >/dev/null
 
-	# Featured image via Picsum
-	IMG_URL="https://picsum.photos/seed/wpseed$((1000+i))/1600/900"
-	MID="$(import_image "$IMG_URL")"
+	# Featured image (download or generate locally, then import)
+	MID="$(import_image "$((1000+i))")"
 	[ -n "$MID" ] && wp post meta update "$PID" _thumbnail_id "$MID" >/dev/null
 
+	# Optional excerpt
 	wp post update "$PID" --post_excerpt="Starter excerpt for \"$TITLE\"." >/dev/null
 
-	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat ID: $CAT_ID, Tags: $TAGS_CSV)"
+	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat ID: $CAT_ID, Tags: $TAGS_CSV, MID: ${MID:-none})"
 done
 
 echo "== Finalize =="
