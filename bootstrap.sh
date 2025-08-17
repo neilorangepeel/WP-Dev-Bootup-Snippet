@@ -134,18 +134,14 @@ add_action('init', function () {
 });
 PHP
 
-# ───────────────────────────────────────────────────────────────────────────────
-# STARTER CONTENT: categories, tags, posts (with featured images)
-# ───────────────────────────────────────────────────────────────────────────────
 echo "== Starter content: taxonomies =="
 
 # Helpers
 ensure_term () {
+	# ensure_term <taxonomy> <name> <slug> -> echoes term_id
 	local TAX="$1" NAME="$2" SLUG="$3" TID
 	TID="$(wp term list "$TAX" --field=term_id --slug="$SLUG")"
-	if [ -z "$TID" ]; then
-		TID="$(wp term create "$TAX" "$NAME" --slug="$SLUG" --porcelain)"
-	fi
+	[ -n "$TID" ] || TID="$(wp term create "$TAX" "$NAME" --slug="$SLUG" --porcelain)"
 	echo "$TID"
 }
 
@@ -155,14 +151,15 @@ import_image () {
 	echo "$MID"
 }
 
-# 5 categories
+# 5 categories (store names, slugs, AND term IDs)
 CAT_NAMES=( "News" "Projects" "Tutorials" "Opinion" "Notes" )
 CAT_SLUGS=( "news" "projects" "tutorials" "opinion" "notes" )
+CAT_IDS=()
 for i in "${!CAT_NAMES[@]}"; do
-	_="$(ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}")"
+	CAT_IDS+=( "$(ensure_term category "${CAT_NAMES[$i]}" "${CAT_SLUGS[$i]}")" )
 done
 
-# 10 tags
+# 10 tags (store names and slugs; use names for --tags_input)
 TAG_NAMES=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 TAG_SLUGS=( "photography" "design" "art" "workflow" "tips" "studio" "lighting" "gear" "inspiration" "behind-the-scenes" )
 for i in "${!TAG_NAMES[@]}"; do
@@ -195,23 +192,24 @@ Photography and film have always felt like a way to translate movement, light, a
 At the same time, I’m drawn to the possibilities of the web. WordPress, streaming setups, and custom workflows feel like an extension of the studio, a place where ideas can be built and shared. I like exploring how different pieces—lighting choices, software tools, or even the ergonomics of a workspace—come together to shape the final outcome. The process is rarely perfect, but the mix of art, technology, and curiosity keeps things moving forward.
 EOT
 
-# Portable random pickers (no 'shuf' needed)
-pick_random_category_slug () {
-	local n=${#CAT_SLUGS[@]}
-	echo "${CAT_SLUGS[$(( RANDOM % n ))]}"
+# Portable random pickers
+pick_random_category_id () {
+	local n=${#CAT_IDS[@]}
+	echo "${CAT_IDS[$(( RANDOM % n ))]}"
 }
-pick_two_distinct_tags_csv () {
-	local n=${#TAG_SLUGS[@]}
+pick_two_distinct_tag_names_csv () {
+	local n=${#TAG_NAMES[@]}
 	local i=$(( RANDOM % n ))
 	local j
 	while :; do
 		j=$(( RANDOM % n ))
 		[ "$j" -ne "$i" ] && break
 	done
-	echo "${TAG_SLUGS[$i]},${TAG_SLUGS[$j]}"
+	# --tags_input expects names (comma-separated)
+	echo "${TAG_NAMES[$i]},${TAG_NAMES[$j]}"
 }
 
-# Create posts
+# Create posts (assign terms via wp post update to avoid --append issues)
 for i in "${!POST_TITLES[@]}"; do
 	TITLE="${POST_TITLES[$i]}"
 
@@ -223,7 +221,6 @@ for i in "${!POST_TITLES[@]}"; do
 		STATUS="publish"
 	fi
 
-	# Build command safely and optionally add --post_date
 	CMD=( wp post create
 		--post_type=post
 		--post_status="$STATUS"
@@ -234,13 +231,12 @@ for i in "${!POST_TITLES[@]}"; do
 
 	PID="$("${CMD[@]}" --porcelain)"
 
-	# Random category (1)
-	CAT_SLUG="$(pick_random_category_slug)"
-	wp post term set "$PID" category "$CAT_SLUG" --by=slug >/dev/null
+	# Random category (ID) and 2 random tag names
+	CAT_ID="$(pick_random_category_id)"
+	TAGS_CSV="$(pick_two_distinct_tag_names_csv)"
 
-	# Random tags (2 distinct) — no --append (compat)
-	TAGS_CSV="$(pick_two_distinct_tags_csv)"
-	wp post term set "$PID" post_tag "$TAGS_CSV" --by=slug >/dev/null
+	# Assign taxonomy terms (compat across WP-CLI versions)
+	wp post update "$PID" --post_category="$CAT_ID" --tags_input="$TAGS_CSV" >/dev/null
 
 	# Featured image via Picsum
 	IMG_URL="https://picsum.photos/seed/wpseed$((1000+i))/1600/900"
@@ -249,7 +245,7 @@ for i in "${!POST_TITLES[@]}"; do
 
 	wp post update "$PID" --post_excerpt="Starter excerpt for \"$TITLE\"." >/dev/null
 
-	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat: $CAT_SLUG, Tags: $TAGS_CSV)"
+	echo "  • Post #$((i+1)) ($STATUS): $TITLE (Cat ID: $CAT_ID, Tags: $TAGS_CSV)"
 done
 
 echo "== Finalize =="
