@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+START_TIME=$(date +%s)
+
 # ── Sanity: must be in WP site root
 [ -f wp-config.php ] || { echo "wp-config.php not found in $PWD"; exit 1; }
 
@@ -242,4 +244,6 @@ echo "== Finalize =="
 wp rewrite flush
 
 echo -e "
-Bootstrap complete (with starter content)."
+Bootstrap complete (with starter content).
+Execution time: ${mins}m ${secs}s
+"
